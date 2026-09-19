@@ -5,8 +5,6 @@ Controle a iluminação ARGB do seu PC de uma janela só, sem ficar abrindo o Op
 O ArgbSync é um app para Windows que conversa com o servidor SDK do OpenRGB e cuida de todo o resto: inicia o
 motor embutido em segundo plano na primeira execução e mantém tudo funcionando — inclusive na bandeja.
 
-![Interface do ArgbSync](Screenshots/argbsync-ui.png)
-
 ## O que ele faz
 
 - **Dispositivos em destaque** — cada placa/vídeo/cooler/strip vira um tile (valeu, SignalRGB), com filtro por tipo de hardware.
