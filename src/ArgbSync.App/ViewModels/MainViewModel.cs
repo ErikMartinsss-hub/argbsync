@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ArgbSync.App.Helpers;
 using ArgbSync.App.Models;
 using ArgbSync.App.Services;
@@ -24,6 +25,7 @@ public partial class MainViewModel : ObservableObject
     private readonly OpenRgbRuntimeManager _runtime;
     private ArgbSettings _settings = new();
     private CancellationTokenSource? _effectCts;
+    private DispatcherTimer? _saveTimer;
 
     private static readonly Dictionary<string, DeviceType> TypeFilterMap = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -70,7 +72,17 @@ public partial class MainViewModel : ObservableObject
             "Faixa de LED", "Teclado", "Mouse", "Mousepad", "Headset", "Suporte headset",
             "Gamepad", "Lâmpada", "Caixa de som", "Virtual", "Outros" };
 
-    public string[] EffectOptions { get; } = { "Arco-íris (girando)", "Respiração" };
+    public string[] EffectOptions { get; } =
+    {
+        "Arco-íris (girando)",
+        "Respiração",
+        "Pulso",
+        "Onda de cor",
+        "Troca de cores",
+        "Estroboscópio",
+        "Aleatório",
+        "Cor sólida",
+    };
 
     public ObservableCollection<DeviceViewModel> Devices { get; } = new();
 
@@ -220,6 +232,15 @@ public partial class MainViewModel : ObservableObject
                 SetStatus("Tamanhos das zonas/headers aplicados.", Colors.Green);
                 RefreshDevicesInternal();
             }
+
+            ApplySavedDeviceStates();
+
+            if (_settings.EffectWasOn && Devices.Count > 0 && !IsEffectRunning)
+            {
+                EffectOptionIndex = _settings.EffectOptionIndex;
+                EffectIntensity = _settings.EffectIntensity;
+                StartEffect();
+            }
         }
         catch (Exception ex)
         {
@@ -279,7 +300,7 @@ public partial class MainViewModel : ObservableObject
         _settings.AutoStartRuntime = AutoStartRuntime;
         _settings.AutoConnect = AutoConnect;
         _settings.CloseToTray = CloseToTray;
-        _settingsService.Save(_settings);
+        PersistSettings();
     }
 
     [RelayCommand]
@@ -314,7 +335,7 @@ public partial class MainViewModel : ObservableObject
             Devices.Clear();
             foreach (var device in devices)
             {
-                Devices.Add(new DeviceViewModel(_service, device, StopEffect, ShowColorDialog, OnZonesResized));
+                Devices.Add(new DeviceViewModel(_service, device, StopEffect, ShowColorDialog, OnZonesResized, SaveDeviceState));
             }
 
             SelectedDevice = Devices.FirstOrDefault(d => d.Index == keepIndex) ?? Devices.FirstOrDefault();
@@ -437,6 +458,63 @@ public partial class MainViewModel : ObservableObject
         RefreshDevicesInternal();
     }
 
+    private void SaveDeviceState(DeviceViewModel device)
+    {
+        _settings.DeviceStates[device.Name] = device.BuildPersistedState();
+        ScheduleSave();
+    }
+
+    private int ApplySavedDeviceStates()
+    {
+        var restored = 0;
+        foreach (var device in Devices)
+        {
+            if (_settings.DeviceStates.TryGetValue(device.Name, out var state))
+            {
+                device.RestoreState(state);
+                restored++;
+            }
+        }
+
+        if (restored > 0)
+            SetStatus($"Configurações restauradas em {restored} dispositivo(s).", Colors.Green);
+
+        return restored;
+    }
+
+    private void ScheduleSave()
+    {
+        _saveTimer ??= new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(700)
+        };
+
+        _saveTimer.Stop();
+        _saveTimer.Tick -= PersistSettings;
+        _saveTimer.Tick += PersistSettings;
+        _saveTimer.Start();
+    }
+
+    private void PersistSettings(object? sender, EventArgs e) => PersistSettings();
+
+    private void PersistSettings()
+    {
+        _saveTimer?.Stop();
+        _settingsService.Save(_settings);
+    }
+
+    private void SaveEffectState()
+    {
+        _settings.EffectWasOn = IsEffectRunning;
+        _settings.EffectOptionIndex = EffectOptionIndex;
+        _settings.EffectIntensity = EffectIntensity;
+        ScheduleSave();
+    }
+
+    partial void OnEffectOptionIndexChanged(int value) => SaveEffectState();
+
+    partial void OnEffectIntensityChanged(double value) => SaveEffectState();
+
     private static string ExceptionMessage(Exception ex)
     {
         while (ex.InnerException is not null)
@@ -467,6 +545,7 @@ public partial class MainViewModel : ObservableObject
         var cts = new CancellationTokenSource();
         _effectCts = cts;
         IsEffectRunning = true;
+        SaveEffectState();
         _ = Task.Run(() => EffectLoop(cts.Token));
     }
 
@@ -475,13 +554,14 @@ public partial class MainViewModel : ObservableObject
         _effectCts?.Cancel();
         _effectCts = null;
         IsEffectRunning = false;
+        SaveEffectState();
     }
 
     private void EffectLoop(CancellationToken ct)
     {
         List<(int Index, int Count)> targets = new();
-        var breathing = EffectOptionIndex == 1;
-        var baseColor = new SdkColor(255, 255, 255);
+        var preset = Math.Clamp(EffectOptionIndex, 0, EffectOptions.Length - 1);
+        var rng = new Random();
 
         try
         {
@@ -501,39 +581,85 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            if (breathing)
-            {
-                var dev = SelectedDevice;
-                baseColor = ColorConversion.Scale(
-                    dev?.SolidSdkColor ?? new SdkColor(255, 255, 255),
-                    dev?.Brightness ?? 1.0);
-            }
+            var dev = SelectedDevice;
+            var baseColor = ColorConversion.Scale(
+                dev?.SolidSdkColor ?? new SdkColor(255, 255, 255),
+                dev?.Brightness ?? 1.0);
+
+            var (baseHue, baseSat, baseVal) = baseColor.ToHsv();
+            if (baseSat < 0.05) baseSat = 1.0;
+            if (baseVal < 0.05) baseVal = 1.0;
 
             var delay = ComputeDelayMs();
             var step = RainbowStep();
+            var hueStep = Math.Max(1, (int)Math.Round(EffectIntensity / 10.0));
             var frame = 0;
 
             while (!ct.IsCancellationRequested)
             {
-                if (breathing)
+                var sine = 0.5 + 0.5 * Math.Sin(2 * Math.PI * frame / 60.0);
+                var quick = 0.5 + 0.5 * Math.Sin(2 * Math.PI * frame / 14.0);
+                var strobeOn = preset == 5 && frame % 8 < 3;
+
+                SdkColor baseLayer;
+                switch (preset)
                 {
-                    var factor = 0.08 + 0.92 * (0.5 + 0.5 * Math.Sin(2 * Math.PI * frame / 60.0));
-                    var breathe = ColorConversion.Scale(baseColor, factor);
-                    foreach (var (index, count) in targets)
-                    {
-                        var colors = new SdkColor[count];
-                        Array.Fill(colors, breathe);
-                        _service.UpdateLeds(index, colors);
-                    }
+                    case 1: // Respiração
+                        baseLayer = ColorConversion.Scale(baseColor, 0.08 + 0.92 * sine);
+                        break;
+                    case 2: // Pulso
+                        baseLayer = ColorConversion.Scale(baseColor, 0.15 + 0.85 * quick);
+                        break;
+                    case 5: // Estroboscópio
+                        baseLayer = strobeOn ? ColorConversion.Scale(baseColor, 1.0) : new SdkColor(0, 0, 0);
+                        break;
+                    case 7: // Cor sólida
+                        baseLayer = baseColor;
+                        break;
+                    default:
+                        baseLayer = baseColor;
+                        break;
                 }
-                else
+
+                foreach (var (index, count) in targets)
                 {
-                    var offset = frame * step;
-                    foreach (var (index, count) in targets)
+                    SdkColor[] colors;
+                    switch (preset)
                     {
-                        var rainbow = ColorUtils.GetHueRainbow(count, offset % 360.0, 1.0, 1.0, 1.0).ToArray();
-                        _service.UpdateLeds(index, rainbow);
+                        case 0: // Arco-íris girando
+                            colors = ColorUtils.GetHueRainbow(count, frame * step % 360.0, 1.0, 1.0, 1.0).ToArray();
+                            break;
+                        case 1: // Respiração
+                        case 2: // Pulso
+                        case 5: // Estroboscópio
+                        case 7: // Cor sólida
+                            colors = new SdkColor[count];
+                            Array.Fill(colors, baseLayer);
+                            break;
+                        case 3: // Onda de cor
+                            colors = new SdkColor[count];
+                            for (var i = 0; i < count; i++)
+                            {
+                                var f = 0.15 + 0.85 * (0.5 + 0.5 * Math.Sin(2 * Math.PI * (i / (double)count + frame / 50.0)));
+                                colors[i] = ColorConversion.Scale(baseColor, f);
+                            }
+                            break;
+                        case 4: // Troca de cores
+                            colors = new SdkColor[count];
+                            var uni = ColorUtils.FromHsv(baseHue + frame * hueStep, baseSat, baseVal);
+                            Array.Fill(colors, uni);
+                            break;
+                        case 6: // Aleatório
+                            colors = new SdkColor[count];
+                            for (var i = 0; i < count; i++)
+                                colors[i] = ColorUtils.FromHsv(rng.NextDouble() * 360.0, 1.0, 1.0);
+                            break;
+                        default:
+                            colors = Array.Empty<SdkColor>();
+                            break;
                     }
+
+                    _service.UpdateLeds(index, colors);
                 }
 
                 frame++;

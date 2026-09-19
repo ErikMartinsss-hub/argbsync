@@ -312,7 +312,10 @@
                                 <StackPanel>
                                     <TextBlock Text="Efeitos embutidos no hardware do dispositivo"
                                                Foreground="{StaticResource MutedBrush}"
-                                               Margin="0,0,0,10" />
+                                               Margin="0,0,0,4" />
+                                    <TextBlock Text="Atenção: em algumas placas (ex.: ASUS Aura USB) os modos de hardware não acendem fitas/headers. Se ficar escuro, use a aba 'Efeitos ao vivo'."
+                                               Foreground="#FFC107"
+                                               TextWrapping="Wrap" Margin="0,0,0,10" />
 
                                     <Border Background="{StaticResource CardBrush}"
                                             BorderBrush="{StaticResource BorderBrush}"
@@ -503,7 +506,7 @@
                             </TabItem.Header>
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
                                 <StackPanel>
-                                    <TextBlock Text="Efeitos animados aplicados a todos os dispositivos conectados"
+                                    <TextBlock Text="Efeitos animados emulados por software – funcionam em qualquer dispositivo, inclusive fitas/headers"
                                                Foreground="{StaticResource MutedBrush}"
                                                Margin="0,0,0,10" />
 
@@ -530,8 +533,10 @@
                                             </StackPanel>
 
                                             <TextBlock Text="• Arco-íris: rotação de cores ao longo dos LEDs."
-                                                       Foreground="{StaticResource MutedBrush}" Margin="0,14,0,2" />
-                                            <TextBlock Text="• Respiração: a cor da aba 'Cor sólida' pulsa suavemente."
+                                                   Foreground="{StaticResource MutedBrush}" Margin="0,14,0,2" />
+                                            <TextBlock Text="• Respiração / Pulso: a cor da aba 'Cor sólida' pulsa suavemente."
+                                                       Foreground="{StaticResource MutedBrush}" />
+                                            <TextBlock Text="• Onda / Troca de cores / Estroboscópio / Aleatório / Cor sólida."
                                                        Foreground="{StaticResource MutedBrush}" />
                                         </StackPanel>
                                     </Border>

@@ -1,5 +1,6 @@
 using System.Windows.Media;
 using ArgbSync.App.Helpers;
+using ArgbSync.App.Models;
 using ArgbSync.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -16,19 +17,23 @@ public partial class DeviceViewModel : ObservableObject
     private readonly Action _onManualChange;
     private readonly Func<Color, Color?> _pickColor;
     private readonly Action<IReadOnlyList<(string ZoneName, int LedCount)>> _onZonesResized;
+    private readonly Action<DeviceViewModel>? _onStateChanged;
+    private bool _restoring;
 
     public DeviceViewModel(
         OpenRgbService service,
         Device device,
         Action onManualChange,
         Func<Color, Color?> pickColor,
-        Action<IReadOnlyList<(string ZoneName, int LedCount)>>? onZonesResized = null)
+        Action<IReadOnlyList<(string ZoneName, int LedCount)>>? onZonesResized = null,
+        Action<DeviceViewModel>? onStateChanged = null)
     {
         _service = service;
         Device = device;
         _onManualChange = onManualChange;
         _pickColor = pickColor;
         _onZonesResized = onZonesResized ?? (_ => { });
+        _onStateChanged = onStateChanged;
 
         _solidColor = Colors.White;
         _brightness = 1.0;
@@ -88,8 +93,31 @@ public partial class DeviceViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SolidBrush))]
     private Color _solidColor;
 
+    partial void OnSolidColorChanged(Color value)
+    {
+        if (_restoring)
+            return;
+
+        LastAction = DeviceLastAction.Solid;
+        _onStateChanged?.Invoke(this);
+    }
+
     [ObservableProperty]
     private double _brightness;
+
+    partial void OnBrightnessChanged(double value)
+    {
+        if (_restoring)
+            return;
+
+        LastAction = DeviceLastAction.Solid;
+        _onStateChanged?.Invoke(this);
+    }
+
+    /// <summary>
+    ///     Última configuração aplicada pelo usuário neste dispositivo.
+    /// </summary>
+    public DeviceLastAction LastAction { get; private set; } = DeviceLastAction.None;
 
     public Brush SolidBrush => new SolidColorBrush(SolidColor);
 
@@ -126,7 +154,9 @@ public partial class DeviceViewModel : ObservableObject
     private void ApplySolid()
     {
         _onManualChange();
+        LastAction = DeviceLastAction.Solid;
         ApplySolidNoStatus();
+        _onStateChanged?.Invoke(this);
     }
 
     public void ApplySolidNoStatus()
@@ -155,11 +185,18 @@ public partial class DeviceViewModel : ObservableObject
     [RelayCommand]
     private void ApplyMode()
     {
+        _onManualChange();
+        ApplyModeToHardware();
+        LastAction = DeviceLastAction.Mode;
+        _onStateChanged?.Invoke(this);
+    }
+
+    public void ApplyModeToHardware()
+    {
         var mode = SelectedMode;
         if (mode is null)
             return;
 
-        _onManualChange();
         _service.ApplyMode(
             Index,
             mode.Index,
@@ -182,8 +219,97 @@ public partial class DeviceViewModel : ObservableObject
     private void ApplyLeds()
     {
         _onManualChange();
+        ApplyLedsToHardware();
+        LastAction = DeviceLastAction.Leds;
+        _onStateChanged?.Invoke(this);
+    }
+
+    public void ApplyLedsToHardware()
+    {
         _service.SetCustomMode(Index);
         _service.UpdateLeds(Index, LedSdkColors());
+    }
+
+    /// <summary>
+    ///     Restaura o estado salvo (cor, modo ou LEDs) e aplica no hardware.
+    ///     Não dispara gravação de configurações durante a restauração.
+    /// </summary>
+    public void RestoreState(DeviceSavedState state)
+    {
+        if (state is null)
+            return;
+
+        _restoring = true;
+        try
+        {
+            if (ColorConversion.TryFromHex(state.SolidColorHex, out var color))
+                SolidColor = color;
+
+            Brightness = state.Brightness;
+            SelectedMode = Modes.FirstOrDefault(m => m.Index == state.ModeIndex);
+        }
+        finally
+        {
+            _restoring = false;
+        }
+
+        switch (state.LastAction)
+        {
+            case DeviceLastAction.Mode when SelectedMode is { } mode:
+                mode.Speed = state.ModeSpeed;
+                mode.Brightness = state.ModeBrightness;
+                if ((state.ModeDirectionLabel?.Length ?? 0) > 0)
+                    mode.DirectionLabel = state.ModeDirectionLabel ?? string.Empty;
+
+                LastAction = DeviceLastAction.Mode;
+                ApplyModeToHardware();
+                break;
+
+            case DeviceLastAction.Leds when state.LedColorsHex.Count == Leds.Count:
+                for (var i = 0; i < Leds.Count; i++)
+                {
+                    if (ColorConversion.TryFromHex(state.LedColorsHex[i], out var ledColor))
+                        Leds[i].Color = ledColor;
+                }
+
+                LastAction = DeviceLastAction.Leds;
+                ApplyLedsToHardware();
+                break;
+
+            case DeviceLastAction.Solid:
+                LastAction = DeviceLastAction.Solid;
+                ApplySolidNoStatus();
+                break;
+        }
+    }
+
+    /// <summary>
+    ///     Constrói o estado persistível atual do dispositivo.
+    /// </summary>
+    public DeviceSavedState BuildPersistedState()
+    {
+        var state = new DeviceSavedState
+        {
+            LastAction = LastAction,
+            SolidColorHex = ColorConversion.ToHex(SolidColor),
+            Brightness = Brightness
+        };
+
+        if (SelectedMode is { } mode)
+        {
+            state.ModeIndex = mode.Index;
+            state.ModeSpeed = mode.Speed;
+            state.ModeBrightness = mode.Brightness;
+            state.ModeDirectionLabel = mode.DirectionLabel;
+        }
+
+        if (Leds.Count > 0)
+        {
+            foreach (var led in Leds)
+                state.LedColorsHex.Add(ColorConversion.ToHex(led.Color));
+        }
+
+        return state;
     }
 
     [RelayCommand]

@@ -14,4 +14,16 @@ public sealed class ArgbSettings
     ///     Chave no formato "nomeDispositivo|nomeZona".
     /// </summary>
     public Dictionary<string, int> ZoneLedCounts { get; set; } = new();
+
+    /// <summary>
+    ///     Últimas cores/configurações aplicadas por dispositivo (chave = nome do dispositivo),
+    ///     restauradas a cada conexão.
+    /// </summary>
+    public Dictionary<string, DeviceSavedState> DeviceStates { get; set; } = new();
+
+    public bool EffectWasOn { get; set; }
+
+    public int EffectOptionIndex { get; set; }
+
+    public double EffectIntensity { get; set; } = 40;
 }

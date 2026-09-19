@@ -7,6 +7,8 @@ namespace ArgbSync.App.Controls;
 
 public partial class ColorPickerControl : UserControl
 {
+    private bool _suppress;
+
     public static readonly DependencyProperty ColorProperty = DependencyProperty.Register(
         nameof(Color),
         typeof(Color),
@@ -32,11 +34,19 @@ public partial class ColorPickerControl : UserControl
 
     private void SyncToColor(Color c)
     {
-        RedSlider.Value = c.R;
-        GreenSlider.Value = c.G;
-        BlueSlider.Value = c.B;
-        HexBox.Text = ToHex(c);
-        Preview.Background = new SolidColorBrush(c);
+        _suppress = true;
+        try
+        {
+            RedSlider.Value = c.R;
+            GreenSlider.Value = c.G;
+            BlueSlider.Value = c.B;
+            HexBox.Text = ToHex(c);
+            Preview.Background = new SolidColorBrush(c);
+        }
+        finally
+        {
+            _suppress = false;
+        }
     }
 
     private static string ToHex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
@@ -67,6 +77,9 @@ public partial class ColorPickerControl : UserControl
 
     private void OnChannelChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
+        if (_suppress)
+            return;
+
         var color = Color.FromRgb((byte)RedSlider.Value, (byte)GreenSlider.Value, (byte)BlueSlider.Value);
         HexBox.Text = ToHex(color);
         Preview.Background = new SolidColorBrush(color);
