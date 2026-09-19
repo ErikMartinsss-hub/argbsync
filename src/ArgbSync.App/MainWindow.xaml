@@ -1,0 +1,625 @@
+﻿<Window x:Class="ArgbSync.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:ArgbSync.App.Controls"
+        Title="ArgbSync — Controlador ARGB"
+        Height="760" Width="1220"
+        MinHeight="600" MinWidth="1000"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ===== Barra superior ===== -->
+        <Border Grid.Row="0"
+                Background="#0E0E17"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="14,10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Marca -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="34" Height="34" CornerRadius="10"
+                            Background="{StaticResource AccentGradientBrush}"
+                            VerticalAlignment="Center">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#FF2E97" BlurRadius="18"
+                                              ShadowDepth="0" Opacity="0.7" />
+                        </Border.Effect>
+                        <TextBlock Text="A" FontWeight="Bold" FontSize="17"
+                                   Foreground="White" HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock FontSize="18" FontWeight="Bold">
+                            <Run Foreground="#FF2E97" Text="Argb" /><Run Foreground="#22D3EE" Text="Sync" />
+                        </TextBlock>
+                        <TextBlock Text="CONTROLADOR ARGB" FontSize="10"
+                                   Foreground="{StaticResource MutedBrush}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Estado + conexão -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Padding="10,5" CornerRadius="12"
+                            Background="{StaticResource PanelBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="9" Height="9" Fill="{Binding StatusBrush}"
+                                     VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding StatusText}" Margin="7,0,0,0"
+                                       Foreground="{StaticResource TextBrush}"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="360" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Width="1" Height="26" Margin="12,0"
+                            Background="{StaticResource BorderBrush}" />
+
+                    <Button Content="Conectar"
+                            Command="{Binding ConnectCommand}"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            VerticalAlignment="Center" />
+                    <Button Content="Desconectar"
+                            Command="{Binding DisconnectCommand}"
+                            Style="{StaticResource GhostButtonStyle}"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- Opções -->
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="2"
+                            Orientation="Horizontal" Margin="0,9,0,0">
+                    <CheckBox Content="Motor embutido"
+                              IsChecked="{Binding AutoStartRuntime, Mode=TwoWay}"
+                              ToolTip="Se marcado, o app inicia o OpenRGB em segundo plano automaticamente — funciona offline." />
+                    <CheckBox Content="Conectar ao iniciar"
+                              IsChecked="{Binding AutoConnect, Mode=TwoWay}"
+                              Margin="18,0,0,0" />
+                    <CheckBox Content="Segundo plano (bandeja)"
+                              IsChecked="{Binding CloseToTray, Mode=TwoWay}"
+                              Margin="18,0,0,0"
+                              ToolTip="Fechar a janela esconde o app na bandeja, mantendo o motor e os efeitos ativos. Sair de verdade pelo menu do ícone (Sair)." />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ===== Conteúdo ===== -->
+        <Grid Grid.Row="1" Margin="12">
+            <TabControl IsEnabled="{Binding IsConnected}">
+                        <!-- Dispositivos -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Width="6" Height="6" RadiusX="3" RadiusY="3"
+                                               Fill="{StaticResource AccentGradientBrush}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text="Dispositivos" Margin="8,0,0,0" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </TabItem.Header>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox ItemsSource="{Binding TypeFilters}"
+                                              SelectedItem="{Binding TypeFilter}" />
+                                    <Button Grid.Column="1" Content="Atualizar"
+                                            Command="{Binding RefreshDevicesCommand}"
+                                            Style="{StaticResource GhostButtonStyle}"
+                                            Padding="10,4" Margin="6,0,0,0" />
+                                </Grid>
+
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding VisibleDevices}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Margin="4" Width="200" Height="112"
+                                                        Cursor="Hand" BorderThickness="0"
+                                                        Command="{Binding DataContext.SelectDeviceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="card"
+                                                                    CornerRadius="10"
+                                                                    Background="{StaticResource CardBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                                    BorderThickness="1">
+                                                                <Border.Effect>
+                                                                    <DropShadowEffect Color="#000" BlurRadius="12"
+                                                                                      ShadowDepth="3" Opacity="0.5" />
+                                                                </Border.Effect>
+                                                                <Grid Margin="12">
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="*" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                    </Grid.RowDefinitions>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Ellipse Grid.ColumnSpan="2" Width="30" Height="30"
+                                                                             HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                                             Fill="{Binding DeviceGlowBrush}">
+                                                                        <Ellipse.Effect>
+                                                                            <DropShadowEffect Color="#22D3EE" BlurRadius="16"
+                                                                                              ShadowDepth="0" Opacity="0.8" />
+                                                                        </Ellipse.Effect>
+                                                                    </Ellipse>
+                                                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2"
+                                                                               Text="{Binding Name}"
+                                                                               FontWeight="SemiBold" FontSize="13"
+                                                                               TextWrapping="Wrap" MaxHeight="34"
+                                                                               VerticalAlignment="Center" />
+                                                                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2"
+                                                                               Text="{Binding TypeAndLeds}"
+                                                                               FontSize="11"
+                                                                               Foreground="{StaticResource AccentBrush}"
+                                                                               VerticalAlignment="Bottom" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter TargetName="card" Property="BorderBrush"
+                                                                            Value="{StaticResource AccentGradientBrush}" />
+                                                                    <Setter TargetName="card" Property="BorderThickness" Value="2" />
+                                                                    <Setter TargetName="card" Property="Effect">
+                                                                        <Setter.Value>
+                                                                            <DropShadowEffect Color="#FF2E97" BlurRadius="20"
+                                                                                              ShadowDepth="0" Opacity="0.6" />
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </DataTrigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </TabItem>
+
+                        <!-- Cor sólida -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Width="6" Height="6" RadiusX="3" RadiusY="3"
+                                               Fill="#34F5A2" VerticalAlignment="Center" />
+                                    <TextBlock Text="Cor sólida" Margin="8,0,0,0" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding SelectedDevice.DetailHeader}"
+                                               FontSize="17" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding SelectedDevice.Description}"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               Margin="0,2,0,12" />
+
+                                    <Border Background="{StaticResource CardBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="10" Padding="14">
+                                        <StackPanel>
+                                            <TextBlock Text="Cor única" FontWeight="SemiBold"
+                                                       Margin="0,0,0,10" />
+                                            <controls:ColorPickerControl
+                                                Color="{Binding SelectedDevice.SolidColor, Mode=TwoWay}" />
+
+                                            <TextBlock Text="Brilho"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       Margin="0,12,0,2" />
+                                            <Slider Minimum="0" Maximum="1"
+                                                    Value="{Binding SelectedDevice.Brightness}"
+                                                    TickFrequency="0.01" />
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                                                <Button Content="Aplicar neste dispositivo"
+                                                        Command="{Binding SelectedDevice.ApplySolidCommand}"
+                                                        Style="{StaticResource PrimaryButtonStyle}" />
+                                                <Button Content="Aplicar em TODOS"
+                                                        Command="{Binding ApplySolidToAllCommand}"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Margin="8,0,0,0" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="{StaticResource CardBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="10" Padding="14"
+                                            Margin="0,10,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Cores rápidas"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       Margin="0,0,0,8" />
+                                            <WrapPanel>
+                                                <Button Tag="#FFFFFF" ToolTip="Branco"
+                                                        Background="#FFFFFF" Width="28" Height="28" Margin="3"
+                                                        Click="OnQuickColorClick" />
+                                                <Button Tag="#FF0000" ToolTip="Vermelho"
+                                                        Background="#FF0000" Width="28" Height="28" Margin="3"
+                                                        Click="OnQuickColorClick" />
+                                                <Button Tag="#FF7F00" ToolTip="Laranja"
+                                                        Background="#FF7F00" Width="28" Height="28" Margin="3"
+                                                        Click="OnQuickColorClick" />
+                                                <Button Tag="#FFFF00" ToolTip="Amarelo"
+                                                        Background="#FFFF00" Width="28" Height="28" Margin="3"
+                                                        Click="OnQuickColorClick" />
+                                                <Button Tag="#00FF00" ToolTip="Verde"
+                                                        Background="#00FF00" Width="28" Height="28" Margin="3"
+                                                        Click="OnQuickColorClick" />
+                                                <Button Tag="#00FFFF" ToolTip="Ciano"
+                                                        Background="#00FFFF" Width="28" Height="28" Margin="3"
+                                                        Click="OnQuickColorClick" />
+                                                <Button Tag="#0026FF" ToolTip="Azul"
+                                                        Background="#0026FF" Width="28" Height="28" Margin="3"
+                                                        Click="OnQuickColorClick" />
+                                                <Button Tag="#8A2BE2" ToolTip="Roxo"
+                                                        Background="#8A2BE2" Width="28" Height="28" Margin="3"
+                                                        Click="OnQuickColorClick" />
+                                                <Button Tag="#FF14B0" ToolTip="Rosa"
+                                                        Background="#FF14B0" Width="28" Height="28" Margin="3"
+                                                        Click="OnQuickColorClick" />
+                                                <Button Tag="#000000" ToolTip="Preto (desligado)"
+                                                        Background="#000000" Width="28" Height="28" Margin="3"
+                                                        Click="OnQuickColorClick" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Modos -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Width="6" Height="6" RadiusX="3" RadiusY="3"
+                                               Fill="{StaticResource AccentGradientBrush}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text="Modos" Margin="8,0,0,0" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+                                <StackPanel>
+                                    <TextBlock Text="Efeitos embutidos no hardware do dispositivo"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               Margin="0,0,0,10" />
+
+                                    <Border Background="{StaticResource CardBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="10" Padding="14">
+                                        <StackPanel>
+                                            <TextBlock Text="Modo" Foreground="{StaticResource MutedBrush}"
+                                                       Margin="0,0,0,4" />
+                                            <ComboBox ItemsSource="{Binding SelectedDevice.Modes}"
+                                                      SelectedItem="{Binding SelectedDevice.SelectedMode}"
+                                                      DisplayMemberPath="Name" />
+
+                                            <StackPanel Margin="0,12,0,0">
+                                                <TextBlock Text="Velocidade" Foreground="{StaticResource MutedBrush}"
+                                                           Margin="0,0,0,2" />
+                                                <Slider Minimum="{Binding SelectedDevice.SelectedMode.SpeedMin}"
+                                                        Maximum="{Binding SelectedDevice.SelectedMode.SpeedMax}"
+                                                        Value="{Binding SelectedDevice.SelectedMode.Speed}"
+                                                        Visibility="{Binding SelectedDevice.SelectedMode.SupportsSpeed, Converter={StaticResource BoolToVis}}" />
+                                            </StackPanel>
+
+                                            <StackPanel Margin="0,10,0,0">
+                                                <TextBlock Text="Brilho" Foreground="{StaticResource MutedBrush}"
+                                                           Margin="0,0,0,2" />
+                                                <Slider Minimum="{Binding SelectedDevice.SelectedMode.BrightnessMin}"
+                                                        Maximum="{Binding SelectedDevice.SelectedMode.BrightnessMax}"
+                                                        Value="{Binding SelectedDevice.SelectedMode.Brightness}"
+                                                        Visibility="{Binding SelectedDevice.SelectedMode.SupportsBrightness, Converter={StaticResource BoolToVis}}" />
+                                            </StackPanel>
+
+                                            <StackPanel Margin="0,10,0,0">
+                                                <TextBlock Text="Direção" Foreground="{StaticResource MutedBrush}"
+                                                           Margin="0,0,0,4" />
+                                                <ComboBox ItemsSource="{Binding SelectedDevice.SelectedMode.DirectionOptions}"
+                                                          SelectedItem="{Binding SelectedDevice.SelectedMode.DirectionLabel}"
+                                                          Width="160" HorizontalAlignment="Left"
+                                                          Visibility="{Binding SelectedDevice.SelectedMode.SupportsDirection, Converter={StaticResource BoolToVis}}" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="Dica: este modo usa cor única — defina na aba 'Cor sólida'."
+                                                       Foreground="{StaticResource MutedBrush}" Margin="0,10,0,0"
+                                                       Visibility="{Binding SelectedDevice.SelectedMode.SupportsColor, Converter={StaticResource BoolToVis}}" />
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                                                <Button Content="Aplicar modo"
+                                                        Command="{Binding SelectedDevice.ApplyModeCommand}"
+                                                        Style="{StaticResource PrimaryButtonStyle}" />
+                                                <Button Content="Salvar modo no hardware"
+                                                        Command="{Binding SelectedDevice.SaveModeToDeviceCommand}"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Margin="8,0,0,0" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Zonas / Headers -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Width="6" Height="6" RadiusX="3" RadiusY="3"
+                                               Fill="#22D3EE" VerticalAlignment="Center" />
+                                    <TextBlock Text="Zonas / Headers" Margin="8,0,0,0" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+                                <StackPanel>
+                                    <TextBlock Text="Headers ARGB nem sempre têm o nº de LEDs detectado sozinho (ex.: cooler, fans e fitas na placa-mãe)."
+                                               Foreground="{StaticResource MutedBrush}" />
+                                    <TextBlock Text="Informe o total de LEDs do header e clique em Aplicar — fica salvo."
+                                               Foreground="{StaticResource MutedBrush}"
+                                               Margin="0,2,0,10" />
+
+                                    <ItemsControl ItemsSource="{Binding SelectedDevice.Zones}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{StaticResource CardBrush}"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        BorderThickness="1" CornerRadius="10"
+                                                        Padding="12" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding LedCount, StringFormat={}{0} LEDs atualmente}"
+                                                                       Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                        </StackPanel>
+                                                        <TextBlock Text="LEDs:" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource MutedBrush}"
+                                                                   Grid.Column="1" Margin="10,0,6,0" />
+                                                        <TextBox Width="80" Grid.Column="2" VerticalAlignment="Center"
+                                                                 Text="{Binding LedCount, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="Este dispositivo não expõe zonas editáveis."
+                                               Foreground="{StaticResource MutedBrush}"
+                                               Visibility="{Binding SelectedDevice.HasNoZones, Converter={StaticResource BoolToVis}}" />
+
+                                    <Button Content="Aplicar tamanhos das zonas"
+                                            Command="{Binding SelectedDevice.ResizeZonesCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Padding="14,8" Margin="0,6,0,0"
+                                            HorizontalAlignment="Left" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- LED individual -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Width="6" Height="6" RadiusX="3" RadiusY="3"
+                                               Fill="#7C4DFF" VerticalAlignment="Center" />
+                                    <TextBlock Text="LED individual" Margin="8,0,0,0" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+                                <StackPanel>
+                                    <TextBlock Text="Controle independente de cada LED (controladores diretos ex.: faixas/fans)"
+                                               Foreground="{StaticResource MutedBrush}" />
+                                    <TextBlock Text="Clique em um quadrado de cor para abrir o seletor."
+                                               Foreground="{StaticResource MutedBrush}"
+                                               Margin="0,2,0,10" />
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <Button Content="Arco-íris"
+                                                Command="{Binding SelectedDevice.RainbowLedsCommand}"
+                                                Style="{StaticResource GhostButtonStyle}" />
+                                        <Button Content="Aleatório"
+                                                Command="{Binding SelectedDevice.RandomLedsCommand}"
+                                                Style="{StaticResource GhostButtonStyle}"
+                                                Margin="6,0,0,0" />
+                                        <Button Content="Apagar todos"
+                                                Command="{Binding SelectedDevice.OffLedsCommand}"
+                                                Style="{StaticResource GhostButtonStyle}"
+                                                Margin="6,0,0,0" />
+                                        <Button Content="Enviar LEDs"
+                                                Command="{Binding SelectedDevice.ApplyLedsCommand}"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <Border Background="{StaticResource CardBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="10"
+                                            Padding="10">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="420">
+                                            <ItemsControl ItemsSource="{Binding SelectedDevice.Leds}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Button Width="26" Height="26" Margin="3"
+                                                                ToolTip="{Binding Name, StringFormat={}{0} — clique para alterar}"
+                                                                Background="{Binding Brush}"
+                                                                BorderThickness="1" BorderBrush="#AA000000"
+                                                                Command="{Binding DataContext.SelectedDevice.OpenLedColorCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Efeitos ao vivo -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Width="6" Height="6" RadiusX="3" RadiusY="3"
+                                               Fill="#FF2E97" VerticalAlignment="Center" />
+                                    <TextBlock Text="Efeitos ao vivo" Margin="8,0,0,0" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+                                <StackPanel>
+                                    <TextBlock Text="Efeitos animados aplicados a todos os dispositivos conectados"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               Margin="0,0,0,10" />
+
+                                    <Border Background="{StaticResource CardBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="10" Padding="14">
+                                        <StackPanel>
+                                            <TextBlock Text="Efeito" Foreground="{StaticResource MutedBrush}"
+                                                       Margin="0,0,0,4" />
+                                            <ComboBox ItemsSource="{Binding EffectOptions}"
+                                                      SelectedIndex="{Binding EffectOptionIndex}"
+                                                      Width="220" HorizontalAlignment="Left" />
+
+                                            <TextBlock Text="Intensidade / velocidade"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       Margin="0,12,0,2" />
+                                            <Slider Minimum="1" Maximum="100"
+                                                    Value="{Binding EffectIntensity}"
+                                                    TickFrequency="1" />
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                                                <Button Style="{StaticResource PrimaryButtonStyle}"
+                                                        Command="{Binding StartStopEffectCommand}" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="• Arco-íris: rotação de cores ao longo dos LEDs."
+                                                       Foreground="{StaticResource MutedBrush}" Margin="0,14,0,2" />
+                                            <TextBlock Text="• Respiração: a cor da aba 'Cor sólida' pulsa suavemente."
+                                                       Foreground="{StaticResource MutedBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Perfis -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Width="6" Height="6" RadiusX="3" RadiusY="3"
+                                               Fill="#34F5A2" VerticalAlignment="Center" />
+                                    <TextBlock Text="Perfis" Margin="8,0,0,0" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+                                <StackPanel>
+                                    <TextBlock Text="Perfis salvos pelo próprio OpenRGB (valem para todos os dispositivos)"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               Margin="0,0,0,10" />
+
+                                    <Border Background="{StaticResource CardBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="10" Padding="14"
+                                            Visibility="{Binding ProfilesSupported, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel>
+                                            <TextBlock Text="Salvar estado atual"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       Margin="0,0,0,4" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="Nome do novo perfil" />
+                                                <Button Grid.Column="1" Content="Salvar perfil"
+                                                        Command="{Binding SaveProfileCommand}"
+                                                        Style="{StaticResource PrimaryButtonStyle}"
+                                                        Margin="6,0,0,0" />
+                                            </Grid>
+
+                                            <TextBlock Text="Perfis existentes"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       Margin="0,14,0,4" />
+                                            <ListBox ItemsSource="{Binding Profiles}"
+                                                     SelectedItem="{Binding SelectedProfile}"
+                                                     MaxHeight="220" />
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                                <Button Content="Carregar"
+                                                        Command="{Binding LoadProfileCommand}"
+                                                        Style="{StaticResource GhostButtonStyle}" />
+                                                <Button Content="Excluir"
+                                                        Command="{Binding DeleteProfileCommand}"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Margin="6,0,0,0" />
+                                                <Button Content="Atualizar lista"
+                                                        Command="{Binding RefreshProfilesCommand}"
+                                                        Style="{StaticResource GhostButtonStyle}"
+                                                        Margin="6,0,0,0" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <TextBlock Text="O servidor OpenRGB não suporta perfis na versão atual do protocolo SDK."
+                                               Foreground="{StaticResource MutedBrush}"
+                                               Margin="0,10,0,0"
+                                               Visibility="{Binding ProfilesNotSupported, Converter={StaticResource BoolToVis}}" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+        </Grid>
+
+        <!-- Rodapé -->
+        <Border Grid.Row="2"
+                Background="#0E0E17"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="14,6">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse Width="7" Height="7" Fill="{Binding StatusBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Foreground="{StaticResource MutedBrush}">
+                    <Run Text="ArgbSync — o app inicia o OpenRGB em segundo plano (servidor SDK porta 6742). Motor embutido é baixado na primeira execução e depois funciona offline." />
+                </TextBlock>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>
